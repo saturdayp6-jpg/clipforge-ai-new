@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ClipForge AI</title>
+
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   padding: 25px;
@@ -12,41 +17,99 @@ body {
   color: white;
   font-family: Arial, sans-serif;
 }
+
 .container {
-  max-width: 600px;
-  margin: auto;
+  max-width: 650px;
+  margin: 30px auto;
 }
-h1 { color: #a78bfa; }
+
+h1 {
+  color: #a78bfa;
+  font-size: 32px;
+}
+
+.subtitle {
+  color: #c4b5fd;
+  line-height: 1.6;
+}
+
+label {
+  display: block;
+  margin-top: 20px;
+  font-weight: bold;
+}
+
 textarea, select, button {
   width: 100%;
-  padding: 14px;
-  margin: 10px 0;
+  padding: 15px;
+  margin-top: 10px;
   border-radius: 9px;
   border: none;
-  box-sizing: border-box;
+  font-size: 16px;
 }
-textarea { height: 130px; }
+
+textarea {
+  height: 140px;
+  resize: vertical;
+}
+
 button {
   background: #8b5cf6;
   color: white;
-  font-size: 17px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 22px;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+#status {
+  color: #c4b5fd;
+  margin-top: 20px;
+  line-height: 1.6;
+}
+
+video {
+  width: 100%;
+  margin-top: 20px;
+  border-radius: 12px;
+}
+
+.download {
+  display: block;
+  background: #16a34a;
+  color: white;
+  padding: 15px;
+  text-align: center;
+  border-radius: 9px;
+  text-decoration: none;
+  margin-top: 15px;
   font-weight: bold;
 }
-#status { color: #c4b5fd; }
 </style>
 </head>
+
 <body>
+
 <div class="container">
+
 <h1>🎬 ClipForge AI</h1>
-<p>Create movies and animated videos with AI.</p>
+
+<p class="subtitle">
+Create realistic AI movies and animated videos with movement and AI-generated audio.
+</p>
 
 <label>Choose video style</label>
+
 <select id="style">
 <option>Realistic Human</option>
 <option>Animation / Cartoon</option>
 </select>
 
-<label>Video format</label>
+<label>Choose video format</label>
+
 <select id="format">
 <option value="9:16">TikTok / Shorts (9:16)</option>
 <option value="16:9">YouTube (16:9)</option>
@@ -54,46 +117,135 @@ button {
 </select>
 
 <label>Describe your video</label>
-<textarea id="prompt" placeholder="Describe the video you want to create..."></textarea>
 
-<button onclick="generateVideo()">Generate AI Video</button>
+<textarea id="prompt"
+placeholder="Describe the movie or animation you want to create..."></textarea>
 
-<p id="status">Your video will appear here.</p>
+<button id="generateBtn" onclick="generateVideo()">
+Generate AI Video
+</button>
+
+<p id="status">Your finished video will appear here.</p>
+
 <div id="result"></div>
+
 </div>
 
 <script>
+
 async function generateVideo() {
+
   const prompt = document.getElementById("prompt").value.trim();
   const style = document.getElementById("style").value;
   const format = document.getElementById("format").value;
   const status = document.getElementById("status");
+  const button = document.getElementById("generateBtn");
+  const result = document.getElementById("result");
 
   if (!prompt) {
     status.textContent = "Please describe your video first.";
     return;
   }
 
-  status.textContent = "Connecting to video generation service...";
+  button.disabled = true;
+  result.innerHTML = "";
 
   try {
+
+    status.textContent = "Starting your AI video generation...";
+
     const response = await fetch("/api/generate", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({prompt, style, format})
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt,
+        style,
+        format
+      })
     });
 
     const data = await response.json();
 
-    if (!response.ok) throw new Error(data.error || "Generation failed.");
+    if (!response.ok) {
+      throw new Error(data.error || "Could not start generation.");
+    }
 
-    status.textContent = "Your video is ready!";
-    document.getElementById("result").innerHTML =
-      `<video controls playsinline width="100%" src="${data.videoUrl}"></video>`;
+    if (!data.requestId) {
+      throw new Error("The video service did not return a request ID.");
+    }
+
+    status.textContent = "Your video is being created. Please wait...";
+
+    let attempts = 0;
+    const maxAttempts = 120;
+
+    while (attempts < maxAttempts) {
+
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      const check = await fetch(
+        "/api/status?requestId=" + encodeURIComponent(data.requestId)
+      );
+
+      const progress = await check.json();
+
+      if (!check.ok) {
+        throw new Error(progress.error || "Could not check video progress.");
+      }
+
+      if (progress.status === "COMPLETED") {
+
+        if (!progress.videoUrl) {
+          throw new Error("The finished video could not be retrieved.");
+        }
+
+        const video = document.createElement("video");
+        video.controls = true;
+        video.playsInline = true;
+        video.src = progress.videoUrl;
+
+        const download = document.createElement("a");
+        download.href = progress.videoUrl;
+        download.target = "_blank";
+        download.rel = "noopener";
+        download.className = "download";
+        download.textContent = "Download Your Video";
+
+        result.appendChild(video);
+        result.appendChild(download);
+
+        status.textContent = "🎉 Your AI video is ready!";
+
+        return;
+      }
+
+      if (progress.status === "FAILED") {
+        throw new Error(progress.error || "Video generation failed.");
+      }
+
+      attempts++;
+
+      status.textContent =
+        "Creating your video... Please wait. (" +
+        attempts + " checks completed)";
+    }
+
+    throw new Error("Generation is taking longer than expected. Try checking again later.");
+
   } catch (error) {
-    status.textContent = error.message;
+
+    status.textContent = "Error: " + error.message;
+
+  } finally {
+
+    button.disabled = false;
+
   }
 }
+
 </script>
+
 </body>
 </html>
