@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipForge AI</title>
+<style>
+body {
+  margin: 0;
+  padding: 25px;
+  background: #10101c;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+.container {
+  max-width: 600px;
+  margin: auto;
+}
+h1 { color: #a78bfa; }
+textarea, select, button {
+  width: 100%;
+  padding: 14px;
+  margin: 10px 0;
+  border-radius: 9px;
+  border: none;
+  box-sizing: border-box;
+}
+textarea { height: 130px; }
+button {
+  background: #8b5cf6;
+  color: white;
+  font-size: 17px;
+  font-weight: bold;
+}
+#status { color: #c4b5fd; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🎬 ClipForge AI</h1>
+<p>Create movies and animated videos with AI.</p>
+
+<label>Choose video style</label>
+<select id="style">
+<option>Realistic Human</option>
+<option>Animation / Cartoon</option>
+</select>
+
+<label>Video format</label>
+<select id="format">
+<option value="9:16">TikTok / Shorts (9:16)</option>
+<option value="16:9">YouTube (16:9)</option>
+<option value="1:1">Square (1:1)</option>
+</select>
+
+<label>Describe your video</label>
+<textarea id="prompt" placeholder="Describe the video you want to create..."></textarea>
+
+<button onclick="generateVideo()">Generate AI Video</button>
+
+<p id="status">Your video will appear here.</p>
+<div id="result"></div>
+</div>
+
+<script>
+async function generateVideo() {
+  const prompt = document.getElementById("prompt").value.trim();
+  const style = document.getElementById("style").value;
+  const format = document.getElementById("format").value;
+  const status = document.getElementById("status");
+
+  if (!prompt) {
+    status.textContent = "Please describe your video first.";
+    return;
+  }
+
+  status.textContent = "Connecting to video generation service...";
+
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({prompt, style, format})
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || "Generation failed.");
+
+    status.textContent = "Your video is ready!";
+    document.getElementById("result").innerHTML =
+      `<video controls playsinline width="100%" src="${data.videoUrl}"></video>`;
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+</script>
+</body>
+</html>
